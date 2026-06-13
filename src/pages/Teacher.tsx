@@ -158,12 +158,12 @@ export default function Teacher() {
 
   // 데모 버튼: 음원만 세팅 (재생 X)
   const selectDemoSong = () => {
-    setMasterBpm(80);
+    setMasterBpm(100);
     setSelectedBeat('4/4');
     set(ref(db, 'gameState/beatType'), '4/4');
     setMasterAudioUrl('/little-star.mp3');
     setIsReady(true);
-    setUploadStatus('⭐ 작은 별 음원 선택됨 (4/4박자 80bpm) — 지휘 시작을 눌러주세요');
+    setUploadStatus('⭐ 작은 별 음원 선택됨 (4/4박자 100bpm) — 지휘 시작을 눌러주세요');
   };
 
   const stopConcert = () => {
