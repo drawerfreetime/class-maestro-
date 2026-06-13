@@ -16,6 +16,7 @@ export default function Student() {
   const lastFirebaseUpdate = useRef<number>(0);
   const beatTypeRef = useRef<string>('4/4');
   const bpmRef = useRef<number>(120);
+  const isLiveRef = useRef<boolean>(false);
 
   // [수업 제어 상태]
   const [isLive, setIsLive] = useState<boolean>(false); // 교사의 합주 시작 여부
@@ -53,9 +54,11 @@ export default function Student() {
 
         if (data.status === 'playing') {
           setIsLive(true);
+          isLiveRef.current = true;
           setFeedback('START!');
         } else {
           setIsLive(false);
+          isLiveRef.current = false;
           setFeedback('대기 중');
           setScore(0);
           setExpression(0);
@@ -90,7 +93,7 @@ export default function Student() {
           delegate: 'GPU'
         },
         runningMode: 'VIDEO',
-        numHands: 2
+        numHands: 1
       });
 
       // 상시 웹캠 스트림 확보 (브라우저 팝업으로 카메라 권한 명확히 요청)
@@ -212,8 +215,9 @@ export default function Student() {
     ctx.setLineDash([]);
 
     // --- [조건부 평가 영역]: 교사가 합주 시작(isLive)을 했을 때만 활성화 ---
+    const liveNow = isLiveRef.current;
     let targetNode = { x: 400, y: 225 }; // 비작동시 중앙 고정
-    if (isLive) {
+    if (liveNow) {
       targetNode = getConductingNode(timestamp, beatTypeRef.current, bpmRef.current);
       ctx.fillStyle = '#1F2937'; // 타이밍 구슬 등장
       ctx.beginPath();
@@ -228,67 +232,49 @@ export default function Student() {
     try {
       // @mediapipe/tasks-vision 의 비디오 처리 메서드는 detectForVideo 입니다.
       const results = landmarkerRef.current.detectForVideo(videoRef.current, performance.now());
-    if (results.landmarks && results.handedness) {
-      results.landmarks.forEach((landmarks: any[]) => {
-        // 화면 미러링 기준: 좌측 영역은 왼손(표현), 우측 영역은 오른손(박자)으로 실전 맵핑 처리
-        const wristX = (1 - landmarks[0].x) * canvas.width;
-        const isRightZone = wristX > canvas.width / 2;
+    if (results.landmarks && results.landmarks.length > 0) {
+      // 첫 번째로 감지된 손만 사용 (numHands: 1)
+      const landmarks = results.landmarks[0];
 
-        if (isRightZone) {
-          // 오직 8번(검지 손가락 끝) 점만 추적 (미러링 적용)
-          const indexFingerTip = landmarks[8];
-          const pointerX = (1 - indexFingerTip.x) * canvas.width;
-          const pointerY = indexFingerTip.y * canvas.height;
+      // 오직 8번(검지 손가락 끝) 점만 추적 (미러링 적용)
+      const indexFingerTip = landmarks[8];
+      const pointerX = (1 - indexFingerTip.x) * canvas.width;
+      const pointerY = indexFingerTip.y * canvas.height;
 
-          // 예쁘고 선명한 황금빛 포인터 표시
-          ctx.fillStyle = '#F59E0B';
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = '#F59E0B';
-          ctx.beginPath();
-          ctx.arc(pointerX, pointerY, 12, 0, 2 * Math.PI);
-          ctx.fill();
-          ctx.shadowBlur = 0;
+      // 황금빛 검지 포인터 표시
+      ctx.fillStyle = '#F59E0B';
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#F59E0B';
+      ctx.beginPath();
+      ctx.arc(pointerX, pointerY, 12, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.shadowBlur = 0;
 
-          // 합주 중일 때만 박자 거리 측정 및 스코어링
-          if (isLive) {
-            const dist = Math.hypot(pointerX - targetNode.x, pointerY - targetNode.y);
-            if (dist < 60) {
-              currentBeatScore = 100;
-              setFeedback('PERFECT!');
-            } else if (dist < 110) {
-              currentBeatScore = 50;
-              setFeedback('GOOD');
-            } else {
-              currentBeatScore = 0;
-              setFeedback('MISS');
-            }
-          }
+      // 합주 중일 때만 박자 거리 측정 및 스코어링
+      if (liveNow) {
+        const dist = Math.hypot(pointerX - targetNode.x, pointerY - targetNode.y);
+        if (dist < 60) {
+          currentBeatScore = 100;
+          setFeedback('PERFECT!');
+        } else if (dist < 110) {
+          currentBeatScore = 50;
+          setFeedback('GOOD');
         } else {
-          // 왼손 악상 표현용 관절 구조 스켈레톤 실시간 드로잉
-          if (isLive) {
-            currentExpression = analyzeLeftHand(landmarks);
-            setExpression(currentExpression);
-          }
-
-          landmarks.forEach(lm => {
-            ctx.fillStyle = 'rgba(31, 41, 55, 0.8)';
-            ctx.beginPath();
-            ctx.arc((1 - lm.x) * canvas.width, lm.y * canvas.height, 5, 0, 2 * Math.PI);
-            ctx.fill();
-          });
+          currentBeatScore = 0;
+          setFeedback('MISS');
         }
-      });
+      }
     }
     } catch (err) {
       console.warn("MediaPipe detection error:", err);
     }
 
-    if (isLive && currentBeatScore > 0) {
+    if (liveNow && currentBeatScore > 0) {
       setScore(prev => Math.round(prev * 0.95 + currentBeatScore * 0.05));
     }
 
     // 0.5초 주기로 Firebase RTDB 서버에 스로틀링 전송
-    if (isLive && timestamp - lastFirebaseUpdate.current > 500) {
+    if (liveNow && timestamp - lastFirebaseUpdate.current > 500) {
       lastFirebaseUpdate.current = timestamp;
       set(ref(db, `scores/${studentName}`), {
         beatScore: currentBeatScore,
