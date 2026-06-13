@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 import { ref, onValue, set } from 'firebase/database';
@@ -163,7 +163,7 @@ export default function Student() {
     // 미디어파이프 관절 실시간 오버레이
     const results = landmarkerRef.current.detectVideo(videoRef.current, timestamp);
     if (results.landmarks && results.handedness) {
-      results.landmarks.forEach((landmarks: any[], index: number) => {
+      results.landmarks.forEach((landmarks: any[]) => {
         // 화면 미러링 기준: 좌측 영역은 왼손(표현), 우측 영역은 오른손(박자)으로 실전 맵핑 처리
         const wristX = (1 - landmarks[0].x) * canvas.width;
         const isRightZone = wristX > canvas.width / 2;
