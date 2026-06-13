@@ -25,6 +25,7 @@ export default async function handler(request, response) {
     // Vercel Blob 저장소로 파일 업로드 진행 (바이너리 버퍼 전송)
     const blob = await put(filename, buffer, {
       access: 'public', // 학생들이 오디오 링크에 접근하여 들을 수 있도록 공개 설정
+      allowOverwrite: true,
     });
 
     // 업로드가 완료되면 Vercel 저장소에 저장된 실제 오디오 주소(URL)를 리턴
