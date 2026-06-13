@@ -226,10 +226,10 @@ export default function Student() {
 
         if (liveNow) {
           const dist = Math.hypot(pointerX - targetNode.x, pointerY - targetNode.y);
-          if (dist < 60) {
+          if (dist < 120) {
             currentBeatScore = 100;
             setFeedback('PERFECT!');
-          } else if (dist < 110) {
+          } else if (dist < 220) {
             currentBeatScore = 50;
             setFeedback('GOOD');
           } else {
