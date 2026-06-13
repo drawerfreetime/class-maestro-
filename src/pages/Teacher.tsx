@@ -56,9 +56,16 @@ export default function Teacher() {
       setGlobalAverage({ beat: avgBeat, expr: avgExpr, count });
 
       if (gainNodeRef.current && audioCtxRef.current) {
-        const baseVolume = (avgBeat / 100);
-        const expressionMultiplier = 0.5 + (avgExpr / 200);
-        const finalVolume = Math.min(Math.max(baseVolume * expressionMultiplier, 0.0), 1.2);
+        let finalVolume = 0;
+        if (count > 0) {
+          const baseVolume = (avgBeat / 100);
+          const expressionMultiplier = 0.5 + (avgExpr / 200);
+          finalVolume = Math.min(Math.max(baseVolume * expressionMultiplier, 0.0), 1.2);
+        } else {
+          // 학생이 없을 때는 선생님이 모니터링할 수 있도록 기본 볼륨 50% 유지
+          finalVolume = 0.5;
+        }
+
         gainNodeRef.current.gain.linearRampToValueAtTime(
           finalVolume, audioCtxRef.current.currentTime + 0.1
         );
@@ -135,7 +142,7 @@ export default function Teacher() {
 
       const source = audioCtxRef.current.createMediaElementSource(audio);
       const gainNode = audioCtxRef.current.createGain();
-      gainNode.gain.value = 0.0; // 학생이 흔들기 전엔 무음 시작
+      gainNode.gain.value = 0.5; // 학생이 없을 때는 50% 볼륨으로 모니터링
       source.connect(gainNode).connect(audioCtxRef.current.destination);
 
       audioElementRef.current = audio;
