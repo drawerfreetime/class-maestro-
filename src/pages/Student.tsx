@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
-import { ref, onValue, set } from 'firebase/database';
+import { ref, onValue, set, onDisconnect, remove } from 'firebase/database';
 import { db } from '../firebase';
 
 export default function Student() {
@@ -30,6 +30,11 @@ export default function Student() {
       return;
     }
 
+    // 학생 입장 시 즉시 노드 생성 및 연결 끊김(브라우저 종료 등) 시 자동 삭제 예약
+    const studentScoreRef = ref(db, `scores/${location.state.studentName}`);
+    set(studentScoreRef, { beatScore: 0, expressionScore: 0, updatedAt: Date.now() });
+    onDisconnect(studentScoreRef).remove();
+
     // 1. 교사의 [합주 시작 / 중단] 신호를 실시간 데이터베이스에서 감시
     const gameStateRef = ref(db, 'gameState');
     const unsubscribeGame = onValue(gameStateRef, (snapshot) => {
@@ -54,6 +59,7 @@ export default function Student() {
 
     return () => {
       unsubscribeGame();
+      remove(studentScoreRef); // 정상적으로 컴포넌트 언마운트 시 명시적 삭제
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
       if (videoRef.current?.srcObject) {
         (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());

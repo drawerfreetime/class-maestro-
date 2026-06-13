@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ref, set, onValue } from 'firebase/database';
+import { ref, set, onValue, remove } from 'firebase/database';
 import { db } from '../firebase';
 
 export default function Teacher() {
@@ -164,7 +164,19 @@ export default function Teacher() {
     <div className="w-full h-screen bg-[#F9FAFB] flex flex-col p-6 font-sans text-[#1F2937]">
       <div className="w-full flex justify-between items-center border-b border-[#D1D5DB] pb-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Teacher Dashboard | 오케스트라 지휘 통제실</h1>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-2xl font-bold tracking-tight">Teacher Dashboard | 오케스트라 지휘 통제실</h1>
+            <button 
+              onClick={() => {
+                if(window.confirm('모든 학생들의 접속 정보를 초기화하시겠습니까?')) {
+                  remove(ref(db, 'scores'));
+                }
+              }} 
+              className="px-3 py-1 bg-red-100 text-red-600 rounded-lg text-xs font-bold hover:bg-red-200 transition-all"
+            >
+              🔄 전체 학생 초기화
+            </button>
+          </div>
           <p className="text-sm text-gray-500 mt-1">{uploadStatus}</p>
         </div>
         
