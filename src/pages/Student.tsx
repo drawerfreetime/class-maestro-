@@ -158,18 +158,6 @@ export default function Student() {
     }
   };
 
-  const analyzeLeftHand = (landmarks: any[]) => {
-    const wrist = landmarks[0];
-    const fingerTips = [4, 8, 12, 16, 20];
-    let totalDistance = 0;
-    fingerTips.forEach(tip => {
-      totalDistance += Math.hypot(landmarks[tip].x - wrist.x, landmarks[tip].y - wrist.y);
-    });
-    const spreadSpread = Math.min(Math.max((totalDistance - 0.5) / 0.8, 0), 1);
-    const heightSpread = Math.min(Math.max((0.8 - wrist.y) / 0.6, 0), 1);
-    return Math.round(spreadSpread * 40 + heightSpread * 60);
-  };
-
   const renderLoop = (timestamp: number) => {
     if (!videoRef.current || !canvasRef.current || !landmarkerRef.current) {
       requestRef.current = requestAnimationFrame(renderLoop);
