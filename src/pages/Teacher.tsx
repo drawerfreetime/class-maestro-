@@ -109,15 +109,18 @@ export default function Teacher() {
             }),
           });
 
-          if (!response.ok) throw new Error('업로드 실패');
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${response.status} 오류 발생`);
+          }
 
           const data = await response.json();
           setMasterAudioUrl(data.url);
           setIsReady(true);
           setUploadStatus(`🟢 마스터 음원 업로드 완료! 합주 준비 완료. (${masterBpm}bpm)`);
-        } catch (error) {
+        } catch (error: any) {
           console.error('업로드 실패:', error);
-          setUploadStatus('❌ 업로드 실패. 다시 시도해주세요.');
+          setUploadStatus(`❌ 업로드 실패: ${error.message}`);
         }
       };
     } catch (error) {

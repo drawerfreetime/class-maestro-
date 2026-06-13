@@ -15,11 +15,15 @@ export default async function handler(request, response) {
   }
 
   try {
-    // 프런트엔드에서 보낸 파일 데이터 받기
+    // 프런트엔드에서 보낸 base64 인코딩된 데이터 추출
     const { filename, file } = request.body;
     
-    // Vercel Blob 저장소로 파일 업로드 진행
-    const blob = await put(filename, file, {
+    // data:audio/mp3;base64, 이후의 순수 base64 문자열만 추출하여 Buffer로 변환
+    const base64Data = file.split(',')[1] || file;
+    const buffer = Buffer.from(base64Data, 'base64');
+    
+    // Vercel Blob 저장소로 파일 업로드 진행 (바이너리 버퍼 전송)
+    const blob = await put(filename, buffer, {
       access: 'public', // 학생들이 오디오 링크에 접근하여 들을 수 있도록 공개 설정
     });
 
