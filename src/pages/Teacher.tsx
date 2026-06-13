@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ref, set, onValue } from 'firebase/database';
-import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebase';
 
 export default function Teacher() {

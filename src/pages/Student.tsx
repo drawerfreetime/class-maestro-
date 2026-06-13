@@ -117,7 +117,6 @@ export default function Student() {
     } else {
       // [정통 4/4박자 지휘 궤적]: 1박(下) -> 2박(左) -> 3박(右) -> 4박(上)
       const t = (time % (beatDuration * 4)) / (beatDuration * 4); // 0.0 ~ 1.0 순환
-      const angle = t * 2 * Math.PI;
       
       // 리사주가 아닌 정통 4방향 스트로크를 부드럽게 구현하기 위한 다항 곡선 제어
       let x = 400;
