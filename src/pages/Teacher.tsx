@@ -53,7 +53,8 @@ export default function Teacher() {
       if (gainNodeRef.current && audioCtxRef.current) {
         let finalVolume = 0;
         if (count > 0) {
-          finalVolume = Math.min(Math.max(avgBeat / 100, 0.0), 1.0);
+          // 박자 점수 0~100% → 볼륨 20~100% 선형 매핑
+          finalVolume = 0.2 + (avgBeat / 100) * 0.8;
         } else {
           finalVolume = 0.5;
         }
