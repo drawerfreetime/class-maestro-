@@ -16,8 +16,8 @@ export default function Teacher() {
     set(ref(db, 'gameState/beatType'), type);
   };
 
-  const [studentsData, setStudentsData] = useState<Record<string, { beat: number; expr: number }>>({});
-  const [globalAverage, setGlobalAverage] = useState<{ beat: number; expr: number; count: number }>({ beat: 0, expr: 0, count: 0 });
+  const [studentsData, setStudentsData] = useState<Record<string, { beat: number }>>({});
+  const [globalAverage, setGlobalAverage] = useState<{ beat: number; count: number }>({ beat: 0, count: 0 });
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
@@ -29,43 +29,34 @@ export default function Teacher() {
       const data = snapshot.val();
       if (!data) {
         setStudentsData({});
-        setGlobalAverage({ beat: 0, expr: 0, count: 0 });
+        setGlobalAverage({ beat: 0, count: 0 });
         return;
       }
 
-      // data is { studentName: { beatScore, expressionScore, updatedAt }, ... }
-      const newStudentsData: Record<string, { beat: number; expr: number }> = {};
+      const newStudentsData: Record<string, { beat: number }> = {};
       let totalBeat = 0;
-      let totalExpr = 0;
       let count = 0;
 
       Object.entries(data).forEach(([studentName, s]: [string, any]) => {
         newStudentsData[studentName] = {
           beat: s.beatScore || 0,
-          expr: s.expressionScore || 0,
         };
         totalBeat += s.beatScore || 0;
-        totalExpr += s.expressionScore || 0;
         count++;
       });
 
       const avgBeat = count > 0 ? Math.round(totalBeat / count) : 0;
-      const avgExpr = count > 0 ? Math.round(totalExpr / count) : 0;
 
       setStudentsData(newStudentsData);
-      setGlobalAverage({ beat: avgBeat, expr: avgExpr, count });
+      setGlobalAverage({ beat: avgBeat, count });
 
       if (gainNodeRef.current && audioCtxRef.current) {
         let finalVolume = 0;
         if (count > 0) {
-          const baseVolume = (avgBeat / 100);
-          const expressionMultiplier = 0.5 + (avgExpr / 200);
-          finalVolume = Math.min(Math.max(baseVolume * expressionMultiplier, 0.0), 1.2);
+          finalVolume = Math.min(Math.max(avgBeat / 100, 0.0), 1.0);
         } else {
-          // 학생이 없을 때는 선생님이 모니터링할 수 있도록 기본 볼륨 50% 유지
           finalVolume = 0.5;
         }
-
         gainNodeRef.current.gain.linearRampToValueAtTime(
           finalVolume, audioCtxRef.current.currentTime + 0.1
         );
@@ -117,7 +108,7 @@ export default function Teacher() {
           const data = await response.json();
           setMasterAudioUrl(data.url);
           setIsReady(true);
-          setUploadStatus(`🟢 마스터 음원 업로드 완료! 합주 준비 완료. (${masterBpm}bpm)`);
+          setUploadStatus(`🟢 마스터 음원 업로드 완료! 지휘 준비 완료. (${masterBpm}bpm)`);
         } catch (error: any) {
           console.error('업로드 실패:', error);
           setUploadStatus(`❌ 업로드 실패: ${error.message}`);
@@ -129,7 +120,8 @@ export default function Teacher() {
     }
   };
 
-  const loadAndStartConcert = async (audioUrl: string) => {
+  // 실제 오디오 재생 + Firebase 신호 발송
+  const playAudio = async (audioUrl: string) => {
     if (!audioCtxRef.current) {
       audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
@@ -137,7 +129,6 @@ export default function Teacher() {
       await audioCtxRef.current.resume();
     }
 
-    // 기존 오디오 제거 후 새로 생성
     if (audioElementRef.current) {
       audioElementRef.current.pause();
       audioElementRef.current = null;
@@ -162,15 +153,17 @@ export default function Teacher() {
 
   const startConcert = async () => {
     if (!isReady || !masterAudioUrl) return;
-    await loadAndStartConcert(masterAudioUrl);
+    await playAudio(masterAudioUrl);
   };
 
-  const startDemoSong = async () => {
+  // 데모 버튼: 음원만 세팅 (재생 X)
+  const selectDemoSong = () => {
     setMasterBpm(80);
     setSelectedBeat('4/4');
     set(ref(db, 'gameState/beatType'), '4/4');
-    setUploadStatus('🎵 테스트용 음원 (작은 별) 재생 중... (4/4박자 80bpm)');
-    await loadAndStartConcert('/little-star.mp3');
+    setMasterAudioUrl('/little-star.mp3');
+    setIsReady(true);
+    setUploadStatus('⭐ 작은 별 음원 선택됨 (4/4박자 80bpm) — 지휘 시작을 눌러주세요');
   };
 
   const stopConcert = () => {
@@ -217,8 +210,12 @@ export default function Teacher() {
         <div className="flex items-center space-x-4">
           {!isPlaying && (
             <button
-              onClick={startDemoSong}
-              className="px-4 py-3 bg-amber-50 border border-amber-300 text-amber-700 text-sm font-semibold rounded-xl shadow-sm cursor-pointer hover:bg-amber-100 transition-all flex flex-col items-center leading-tight"
+              onClick={selectDemoSong}
+              className={`px-4 py-3 text-sm font-semibold rounded-xl shadow-sm cursor-pointer transition-all flex flex-col items-center leading-tight border ${
+                masterAudioUrl === '/little-star.mp3' && isReady
+                  ? 'bg-amber-100 border-amber-400 text-amber-800'
+                  : 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+              }`}
             >
               <span>⭐ 작은 별 음원</span>
               <span className="text-xs text-amber-500 font-normal">(테스트용)</span>
@@ -257,20 +254,11 @@ export default function Teacher() {
           <div className="w-full space-y-6">
             <div>
               <div className="flex justify-between text-sm mb-2 font-medium">
-                <span className="text-gray-500">박자 정확도 (기본 볼륨)</span>
+                <span className="text-gray-500">박자 정확도 (볼륨)</span>
                 <span className="font-bold text-2xl">{globalAverage.beat}%</span>
               </div>
               <div className="w-full h-4 bg-gray-100 rounded-full overflow-hidden">
                 <div className="h-full bg-[#1F2937] transition-all duration-300" style={{ width: `${globalAverage.beat}%` }} />
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-2 font-medium">
-                <span className="text-gray-500">악상 표현 (볼륨 증폭)</span>
-                <span className="font-bold text-2xl text-[#F59E0B]">{globalAverage.expr}%</span>
-              </div>
-              <div className="w-full h-4 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-[#F59E0B] transition-all duration-300" style={{ width: `${globalAverage.expr}%` }} />
               </div>
             </div>
           </div>
@@ -290,10 +278,6 @@ export default function Teacher() {
                     <div className="text-center">
                       <div className="text-xs text-gray-400">박자</div>
                       <div className="font-semibold">{data.beat}%</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-400">악상</div>
-                      <div className="font-semibold text-[#F59E0B]">{data.expr}%</div>
                     </div>
                   </div>
                 </div>

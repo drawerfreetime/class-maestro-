@@ -19,9 +19,8 @@ export default function Student() {
   const isLiveRef = useRef<boolean>(false);
 
   // [수업 제어 상태]
-  const [isLive, setIsLive] = useState<boolean>(false); // 교사의 합주 시작 여부
+  const [isLive, setIsLive] = useState<boolean>(false);
   const [score, setScore] = useState<number>(0);
-  const [expression, setExpression] = useState<number>(0);
   const [feedback, setFeedback] = useState<string>('대기 중');
   const [cameraState, setCameraState] = useState<'idle' | 'requesting' | 'granted' | 'error'>('idle');
   const [beatType, setBeatType] = useState<string>('4/4');
@@ -33,12 +32,12 @@ export default function Student() {
       return;
     }
 
-    // 학생 입장 시 즉시 노드 생성 및 연결 끊김(브라우저 종료 등) 시 자동 삭제 예약
+    // 학생 입장 시 즉시 노드 생성 및 연결 끊김 시 자동 삭제 예약
     const studentScoreRef = ref(db, `scores/${location.state.studentName}`);
-    set(studentScoreRef, { beatScore: 0, expressionScore: 0, updatedAt: Date.now() });
+    set(studentScoreRef, { beatScore: 0, updatedAt: Date.now() });
     onDisconnect(studentScoreRef).remove();
 
-    // 1. 교사의 [합주 시작 / 중단] 신호를 실시간 데이터베이스에서 감시
+    // 교사의 [지휘 시작 / 중단] 신호를 실시간 데이터베이스에서 감시
     const gameStateRef = ref(db, 'gameState');
     const unsubscribeGame = onValue(gameStateRef, (snapshot) => {
       const data = snapshot.val();
@@ -61,14 +60,13 @@ export default function Student() {
           isLiveRef.current = false;
           setFeedback('대기 중');
           setScore(0);
-          setExpression(0);
         }
       }
     });
 
     return () => {
       unsubscribeGame();
-      remove(studentScoreRef); // 정상적으로 컴포넌트 언마운트 시 명시적 삭제
+      remove(studentScoreRef);
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
       if (videoRef.current?.srcObject) {
         (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
@@ -76,7 +74,7 @@ export default function Student() {
     };
   }, [location.state?.studentName, navigate]);
 
-  // 2. 미디어파이프 및 웹캠 상시 기동 (버튼 클릭을 통한 명시적 요청)
+  // 미디어파이프 및 웹캠 초기화
   const initMediaPipeAndCamera = async () => {
     setCameraState('requesting');
     try {
@@ -96,7 +94,6 @@ export default function Student() {
         numHands: 1
       });
 
-      // 상시 웹캠 스트림 확보 (브라우저 팝업으로 카메라 권한 명확히 요청)
       if (videoRef.current) {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
@@ -118,9 +115,8 @@ export default function Student() {
 
   // 박자별 지휘 궤적 수학 공식
   const getConductingNode = (time: number, beatType: string, currentBpm: number = 120) => {
-    const beatDuration = (60 / currentBpm) * 1000; // 1박자당 시간(ms)
+    const beatDuration = (60 / currentBpm) * 1000;
     
-    // 화면 크기 800x450, 중앙점 (400, 225). 기존보다 20% 크기 확대(scale 1.2)
     if (beatType === '2/4') {
       const t = (time % (beatDuration * 2)) / (beatDuration * 2);
       return { x: 400 + 180 * Math.sin(t * 2 * Math.PI), y: 225 + 180 * Math.cos(t * 2 * Math.PI) };
@@ -132,24 +128,24 @@ export default function Student() {
       return { x: 400 + 312 * Math.sin(t * 2 * Math.PI), y: 225 + 120 * Math.sin(t * 4 * Math.PI) };
     } else {
       // [정통 4/4박자 지휘 궤적]: 1박(下) -> 2박(左) -> 3박(右) -> 4박(上)
-      const t = (time % (beatDuration * 4)) / (beatDuration * 4); // 0.0 ~ 1.0 순환
+      const t = (time % (beatDuration * 4)) / (beatDuration * 4);
       
       let bx = 0;
       let by = 0;
       
-      if (t < 0.25) { // 1박: 아래로 내려치기
+      if (t < 0.25) {
         const p = t / 0.25;
         bx = 0 - 30 * Math.sin(p * Math.PI);
         by = -120 + 240 * p;
-      } else if (t < 0.5) { // 2박: 왼쪽으로 찌르기
+      } else if (t < 0.5) {
         const p = (t - 0.25) / 0.25;
         bx = 0 - 180 * p;
         by = 120 - 100 * Math.sin(p * Math.PI / 2);
-      } else if (t < 0.75) { // 3박: 오른쪽으로 길게 뻗기
+      } else if (t < 0.75) {
         const p = (t - 0.5) / 0.25;
         bx = -180 + 360 * p;
         by = 20 + 50 * Math.sin(p * Math.PI);
-      } else { // 4박: 원점으로 솟구치며 회귀
+      } else {
         const p = (t - 0.75) / 0.25;
         bx = 180 - 180 * p;
         by = 20 - 140 * p;
@@ -168,22 +164,19 @@ export default function Student() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // --- [기본 렌더링 영역]: 카메라는 상시 구동하여 배경에 뿌림 ---
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // 웹캠 거울 반전(미러링) 효과 적용하여 꽉 차게 그리기
     ctx.save();
     ctx.scale(-1, 1);
     ctx.translate(-canvas.width, 0);
     ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
-    // 박자표가 잘 보이도록 흰색 배경 투명도 40% 오버레이 적용
     ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 박자 점선 가이드라인 그리기 (상시 표시하여 대기 및 연습 유도)
-    ctx.strokeStyle = 'rgba(29, 39, 55, 0.3)'; // 어두운 차콜 투명 레이어
+    // 박자 점선 가이드라인
+    ctx.strokeStyle = 'rgba(29, 39, 55, 0.3)';
     ctx.lineWidth = 4;
     ctx.setLineDash([8, 8]);
     ctx.beginPath();
@@ -202,57 +195,49 @@ export default function Student() {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // --- [조건부 평가 영역]: 교사가 합주 시작(isLive)을 했을 때만 활성화 ---
     const liveNow = isLiveRef.current;
-    let targetNode = { x: 400, y: 225 }; // 비작동시 중앙 고정
+    let targetNode = { x: 400, y: 225 };
     if (liveNow) {
       targetNode = getConductingNode(timestamp, beatTypeRef.current, bpmRef.current);
-      ctx.fillStyle = '#1F2937'; // 타이밍 구슬 등장
+      ctx.fillStyle = '#1F2937';
       ctx.beginPath();
       ctx.arc(targetNode.x, targetNode.y, 18, 0, 2 * Math.PI);
       ctx.fill();
     }
 
     let currentBeatScore = 0;
-    let currentExpression = 0;
 
-    // 미디어파이프 관절 실시간 오버레이
     try {
-      // @mediapipe/tasks-vision 의 비디오 처리 메서드는 detectForVideo 입니다.
       const results = landmarkerRef.current.detectForVideo(videoRef.current, performance.now());
-    if (results.landmarks && results.landmarks.length > 0) {
-      // 첫 번째로 감지된 손만 사용 (numHands: 1)
-      const landmarks = results.landmarks[0];
+      if (results.landmarks && results.landmarks.length > 0) {
+        const landmarks = results.landmarks[0];
 
-      // 오직 8번(검지 손가락 끝) 점만 추적 (미러링 적용)
-      const indexFingerTip = landmarks[8];
-      const pointerX = (1 - indexFingerTip.x) * canvas.width;
-      const pointerY = indexFingerTip.y * canvas.height;
+        const indexFingerTip = landmarks[8];
+        const pointerX = (1 - indexFingerTip.x) * canvas.width;
+        const pointerY = indexFingerTip.y * canvas.height;
 
-      // 황금빛 검지 포인터 표시
-      ctx.fillStyle = '#F59E0B';
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = '#F59E0B';
-      ctx.beginPath();
-      ctx.arc(pointerX, pointerY, 12, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.shadowBlur = 0;
+        ctx.fillStyle = '#F59E0B';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#F59E0B';
+        ctx.beginPath();
+        ctx.arc(pointerX, pointerY, 12, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.shadowBlur = 0;
 
-      // 합주 중일 때만 박자 거리 측정 및 스코어링
-      if (liveNow) {
-        const dist = Math.hypot(pointerX - targetNode.x, pointerY - targetNode.y);
-        if (dist < 60) {
-          currentBeatScore = 100;
-          setFeedback('PERFECT!');
-        } else if (dist < 110) {
-          currentBeatScore = 50;
-          setFeedback('GOOD');
-        } else {
-          currentBeatScore = 0;
-          setFeedback('MISS');
+        if (liveNow) {
+          const dist = Math.hypot(pointerX - targetNode.x, pointerY - targetNode.y);
+          if (dist < 60) {
+            currentBeatScore = 100;
+            setFeedback('PERFECT!');
+          } else if (dist < 110) {
+            currentBeatScore = 50;
+            setFeedback('GOOD');
+          } else {
+            currentBeatScore = 0;
+            setFeedback('MISS');
+          }
         }
       }
-    }
     } catch (err) {
       console.warn("MediaPipe detection error:", err);
     }
@@ -266,7 +251,6 @@ export default function Student() {
       lastFirebaseUpdate.current = timestamp;
       set(ref(db, `scores/${studentName}`), {
         beatScore: currentBeatScore,
-        expressionScore: currentExpression,
         updatedAt: timestamp
       });
     }
@@ -276,21 +260,21 @@ export default function Student() {
 
   return (
     <div className="w-full h-screen bg-[#F9FAFB] flex flex-col justify-between items-center p-6 font-sans text-[#1F2937]">
-      {/* 상단 헤더 뷰 리포트 */}
+      {/* 상단 헤더 */}
       <div className="w-full flex justify-between items-center border-b border-[#D1D5DB] pb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Student Maestro</h1>
           <p className="text-sm text-gray-500">이름: {studentName}</p>
         </div>
         <div className="text-right">
-          <div className="text-xs text-gray-400">BPM {bpm} | {beatType} | 맨손 양손 지휘 가이드</div>
+          <div className="text-xs text-gray-400">BPM {bpm} | {beatType} | 지휘 가이드</div>
           <div className={`text-lg font-bold ${isLive ? 'text-[#F59E0B] animate-pulse' : 'text-gray-400'}`}>
             {feedback}
           </div>
         </div>
       </div>
 
-      {/* 메인 캔버스 스테이지 (웹캠 화면 상시 전면 배치) */}
+      {/* 메인 캔버스 스테이지 */}
       <div className="relative w-[800px] h-[450px] bg-white rounded-2xl shadow-sm border border-[#D1D5DB] overflow-hidden">
         <video ref={videoRef} style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }} playsInline muted autoPlay />
         <canvas ref={canvasRef} width="800" height="450" className="w-full h-full" />
@@ -317,22 +301,16 @@ export default function Student() {
           <div className="absolute inset-0 bg-black/40 flex justify-center items-center backdrop-blur-xs z-0">
             <div className="bg-white px-6 py-4 rounded-xl shadow-lg text-center border border-gray-200">
               <p className="text-base font-bold text-gray-800">지휘 준비 완료 🤍</p>
-              <p className="text-xs text-gray-500 mt-1">선생님이 합주를 시작하면 음악과 평가가 시작됩니다.</p>
+              <p className="text-xs text-gray-500 mt-1">선생님이 지휘를 시작하면 음악과 평가가 시작됩니다.</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* 실시간 믹싱 피드백 보드 */}
-      <div className="w-full grid grid-cols-2 gap-4 max-w-2xl bg-white p-4 rounded-xl border border-[#D1D5DB] shadow-sm">
-        <div className="text-center border-r border-[#D1D5DB]">
-          <div className="text-xs text-gray-400 font-semibold uppercase">박자 정확도</div>
-          <div className="text-3xl font-bold mt-1 text-[#1F2937]">{score}%</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xs text-gray-400 font-semibold uppercase">왼손 악상크기</div>
-          <div className="text-3xl font-bold mt-1 text-[#F59E0B]">{expression}%</div>
-        </div>
+      {/* 실시간 피드백 보드 */}
+      <div className="w-full max-w-2xl bg-white p-4 rounded-xl border border-[#D1D5DB] shadow-sm text-center">
+        <div className="text-xs text-gray-400 font-semibold uppercase">박자 정확도</div>
+        <div className="text-3xl font-bold mt-1 text-[#1F2937]">{score}%</div>
       </div>
     </div>
   );
