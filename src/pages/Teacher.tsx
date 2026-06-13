@@ -129,8 +129,7 @@ export default function Teacher() {
     }
   };
 
-  const startConcert = async () => {
-    if (!isReady || !masterAudioUrl) return;
+  const loadAndStartConcert = async (audioUrl: string) => {
     if (!audioCtxRef.current) {
       audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
@@ -138,23 +137,40 @@ export default function Teacher() {
       await audioCtxRef.current.resume();
     }
 
-    if (!audioElementRef.current) {
-      const audio = new Audio(masterAudioUrl);
-      audio.loop = true;
-      audio.crossOrigin = 'anonymous';
-
-      const source = audioCtxRef.current.createMediaElementSource(audio);
-      const gainNode = audioCtxRef.current.createGain();
-      gainNode.gain.value = 0.5; // 학생이 없을 때는 50% 볼륨으로 모니터링
-      source.connect(gainNode).connect(audioCtxRef.current.destination);
-
-      audioElementRef.current = audio;
-      gainNodeRef.current = gainNode;
+    // 기존 오디오 제거 후 새로 생성
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current = null;
     }
-    audioElementRef.current.play();
 
+    const audio = new Audio(audioUrl);
+    audio.loop = true;
+    audio.crossOrigin = 'anonymous';
+
+    const source = audioCtxRef.current.createMediaElementSource(audio);
+    const gainNode = audioCtxRef.current.createGain();
+    gainNode.gain.value = 0.5;
+    source.connect(gainNode).connect(audioCtxRef.current.destination);
+
+    audioElementRef.current = audio;
+    gainNodeRef.current = gainNode;
+
+    audio.play();
     set(ref(db, 'gameState'), { status: 'playing', bpm: masterBpm, beatType: selectedBeat, updatedAt: Date.now() });
     setIsPlaying(true);
+  };
+
+  const startConcert = async () => {
+    if (!isReady || !masterAudioUrl) return;
+    await loadAndStartConcert(masterAudioUrl);
+  };
+
+  const startDemoSong = async () => {
+    setMasterBpm(80);
+    setSelectedBeat('4/4');
+    set(ref(db, 'gameState/beatType'), '4/4');
+    setUploadStatus('🎵 테스트용 음원 (작은 별) 재생 중... (4/4박자 80bpm)');
+    await loadAndStartConcert('/little-star.mp3');
   };
 
   const stopConcert = () => {
@@ -197,8 +213,18 @@ export default function Teacher() {
           ))}
         </div>
 
-        {/* 파일 제어 및 합주 시작 레이아웃 라인 */}
+        {/* 파일 제어 및 지휘 시작 레이아웃 라인 */}
         <div className="flex items-center space-x-4">
+          {!isPlaying && (
+            <button
+              onClick={startDemoSong}
+              className="px-4 py-3 bg-amber-50 border border-amber-300 text-amber-700 text-sm font-semibold rounded-xl shadow-sm cursor-pointer hover:bg-amber-100 transition-all flex flex-col items-center leading-tight"
+            >
+              <span>⭐ 작은 별 음원</span>
+              <span className="text-xs text-amber-500 font-normal">(테스트용)</span>
+            </button>
+          )}
+
           <label className="px-4 py-3 bg-white border border-[#D1D5DB] text-sm font-semibold rounded-xl shadow-sm cursor-pointer hover:bg-gray-50 transition-all">
             📂 마스터 음원 선택
             <input type="file" accept="audio/*" onChange={handleFileSelect} className="hidden" />
@@ -212,11 +238,11 @@ export default function Teacher() {
                 isReady ? 'bg-[#1F2937] text-white hover:bg-gray-800' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
             >
-              🎵 합주 시작 (학생 기기 동시 기동)
+              🎵 지휘 시작 (학생 기기 동시 기동)
             </button>
           ) : (
             <button onClick={stopConcert} className="px-6 py-3 bg-red-600 text-white font-bold rounded-xl shadow-sm hover:bg-red-700 transition-all">
-              ⏹️ 합주 중단
+              ⏹️ 지휘 중단
             </button>
           )}
         </div>
