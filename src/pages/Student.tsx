@@ -15,6 +15,7 @@ export default function Student() {
   const requestRef = useRef<number | null>(null);
   const lastFirebaseUpdate = useRef<number>(0);
   const beatTypeRef = useRef<string>('4/4');
+  const bpmRef = useRef<number>(120);
 
   // [수업 제어 상태]
   const [isLive, setIsLive] = useState<boolean>(false); // 교사의 합주 시작 여부
@@ -23,6 +24,7 @@ export default function Student() {
   const [feedback, setFeedback] = useState<string>('대기 중');
   const [cameraState, setCameraState] = useState<'idle' | 'requesting' | 'granted' | 'error'>('idle');
   const [beatType, setBeatType] = useState<string>('4/4');
+  const [bpm, setBpm] = useState<number>(120);
 
   useEffect(() => {
     if (!location.state?.studentName) {
@@ -43,6 +45,10 @@ export default function Student() {
         if (data.beatType) {
           setBeatType(data.beatType);
           beatTypeRef.current = data.beatType;
+        }
+        if (data.bpm) {
+          setBpm(data.bpm);
+          bpmRef.current = data.bpm;
         }
 
         if (data.status === 'playing') {
@@ -108,44 +114,44 @@ export default function Student() {
   };
 
   // 박자별 지휘 궤적 수학 공식
-  const getConductingNode = (time: number, beatType: string, bpm: number = 120) => {
-    const beatDuration = (60 / bpm) * 1000; // 1박자당 시간(ms)
+  const getConductingNode = (time: number, beatType: string, currentBpm: number = 120) => {
+    const beatDuration = (60 / currentBpm) * 1000; // 1박자당 시간(ms)
     
+    // 화면 크기 800x450, 중앙점 (400, 225). 기존보다 20% 크기 확대(scale 1.2)
     if (beatType === '2/4') {
       const t = (time % (beatDuration * 2)) / (beatDuration * 2);
-      return { x: 400 + 150 * Math.sin(t * 2 * Math.PI), y: 300 + 150 * Math.cos(t * 2 * Math.PI) };
+      return { x: 400 + 180 * Math.sin(t * 2 * Math.PI), y: 225 + 180 * Math.cos(t * 2 * Math.PI) };
     } else if (beatType === '3/4') {
       const t = (time % (beatDuration * 3)) / (beatDuration * 3);
-      return { x: 400 + 200 * Math.sin(t * 2 * Math.PI), y: 350 + 100 * Math.cos(t * 3 * Math.PI) };
+      return { x: 400 + 240 * Math.sin(t * 2 * Math.PI), y: 225 + 120 * Math.cos(t * 3 * Math.PI) };
     } else if (beatType === '6/8') {
       const t = (time % (beatDuration * 6)) / (beatDuration * 6);
-      return { x: 400 + 260 * Math.sin(t * 2 * Math.PI), y: 320 + 100 * Math.sin(t * 4 * Math.PI) };
+      return { x: 400 + 312 * Math.sin(t * 2 * Math.PI), y: 225 + 120 * Math.sin(t * 4 * Math.PI) };
     } else {
       // [정통 4/4박자 지휘 궤적]: 1박(下) -> 2박(左) -> 3박(右) -> 4박(上)
       const t = (time % (beatDuration * 4)) / (beatDuration * 4); // 0.0 ~ 1.0 순환
       
-      // 리사주가 아닌 정통 4방향 스트로크를 부드럽게 구현하기 위한 다항 곡선 제어
-      let x = 400;
-      let y = 300;
+      let bx = 0;
+      let by = 0;
       
       if (t < 0.25) { // 1박: 아래로 내려치기
         const p = t / 0.25;
-        x = 400 - 30 * Math.sin(p * Math.PI);
-        y = 180 + 240 * p;
+        bx = 0 - 30 * Math.sin(p * Math.PI);
+        by = -120 + 240 * p;
       } else if (t < 0.5) { // 2박: 왼쪽으로 찌르기
         const p = (t - 0.25) / 0.25;
-        x = 400 - 180 * p;
-        y = 420 - 100 * Math.sin(p * Math.PI / 2);
+        bx = 0 - 180 * p;
+        by = 120 - 100 * Math.sin(p * Math.PI / 2);
       } else if (t < 0.75) { // 3박: 오른쪽으로 길게 뻗기
         const p = (t - 0.5) / 0.25;
-        x = 220 + 360 * p;
-        y = 320 + 50 * Math.sin(p * Math.PI);
+        bx = -180 + 360 * p;
+        by = 20 + 50 * Math.sin(p * Math.PI);
       } else { // 4박: 원점으로 솟구치며 회귀
         const p = (t - 0.75) / 0.25;
-        x = 580 - 180 * p;
-        y = 320 - 140 * p;
+        bx = 180 - 180 * p;
+        by = 20 - 140 * p;
       }
-      return { x, y };
+      return { x: 400 + bx * 1.2, y: 225 + by * 1.2 };
     }
   };
 
@@ -181,6 +187,10 @@ export default function Student() {
     ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
+    // 박자표가 잘 보이도록 흰색 배경 투명도 40% 오버레이 적용
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     // 박자 점선 가이드라인 그리기 (상시 표시하여 대기 및 연습 유도)
     ctx.strokeStyle = 'rgba(29, 39, 55, 0.3)'; // 어두운 차콜 투명 레이어
     ctx.lineWidth = 4;
@@ -192,9 +202,9 @@ export default function Student() {
       else if (beatTypeRef.current === '3/4') cycleFactor = 3;
       else if (beatTypeRef.current === '6/8') cycleFactor = 6;
       
-      const duration = (60 / 120) * cycleFactor * 1000;
+      const duration = (60 / bpmRef.current) * cycleFactor * 1000;
       const fakeTime = (i / 100) * duration;
-      const pt = getConductingNode(fakeTime, beatTypeRef.current);
+      const pt = getConductingNode(fakeTime, beatTypeRef.current, bpmRef.current);
       if (i === 0) ctx.moveTo(pt.x, pt.y);
       else ctx.lineTo(pt.x, pt.y);
     }
@@ -204,7 +214,7 @@ export default function Student() {
     // --- [조건부 평가 영역]: 교사가 합주 시작(isLive)을 했을 때만 활성화 ---
     let targetNode = { x: 400, y: 225 }; // 비작동시 중앙 고정
     if (isLive) {
-      targetNode = getConductingNode(timestamp, beatTypeRef.current);
+      targetNode = getConductingNode(timestamp, beatTypeRef.current, bpmRef.current);
       ctx.fillStyle = '#1F2937'; // 타이밍 구슬 등장
       ctx.beginPath();
       ctx.arc(targetNode.x, targetNode.y, 18, 0, 2 * Math.PI);
@@ -299,7 +309,7 @@ export default function Student() {
           <p className="text-sm text-gray-500">이름: {studentName}</p>
         </div>
         <div className="text-right">
-          <div className="text-xs text-gray-400">BPM 120 | {beatType} | 맨손 양손 지휘 가이드</div>
+          <div className="text-xs text-gray-400">BPM {bpm} | {beatType} | 맨손 양손 지휘 가이드</div>
           <div className={`text-lg font-bold ${isLive ? 'text-[#F59E0B] animate-pulse' : 'text-gray-400'}`}>
             {feedback}
           </div>
