@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# 테스트용 오디오 파일
+*.m4a
+*.mp3
+!public/*.mp3
