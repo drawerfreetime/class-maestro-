@@ -17,6 +17,7 @@ export default function Student() {
   const beatTypeRef = useRef<string>('4/4');
   const bpmRef = useRef<number>(120);
   const isLiveRef = useRef<boolean>(false);
+  const startTimeRef = useRef<number>(0); // 지휘 시작 기준 타임스탬프
 
   // [수업 제어 상태]
   const [isLive, setIsLive] = useState<boolean>(false);
@@ -54,6 +55,7 @@ export default function Student() {
         if (data.status === 'playing') {
           setIsLive(true);
           isLiveRef.current = true;
+          startTimeRef.current = performance.now(); // 지휘 시작 순간을 원점으로 기록
           setFeedback('START!');
         } else {
           setIsLive(false);
@@ -198,7 +200,8 @@ export default function Student() {
     const liveNow = isLiveRef.current;
     let targetNode = { x: 400, y: 225 };
     if (liveNow) {
-      targetNode = getConductingNode(timestamp, beatTypeRef.current, bpmRef.current);
+      const elapsed = timestamp - startTimeRef.current; // 지휘 시작부터의 경과 시간
+      targetNode = getConductingNode(elapsed, beatTypeRef.current, bpmRef.current);
       ctx.fillStyle = '#1F2937';
       ctx.beginPath();
       ctx.arc(targetNode.x, targetNode.y, 18, 0, 2 * Math.PI);
