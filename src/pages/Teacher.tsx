@@ -81,14 +81,14 @@ export default function Teacher() {
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
+
     const fileToUpload = files[0];
     e.target.value = ''; // reset
-    
+
     setUploadStatus('⏳ 음원 분석 중 (BPM 및 박자)...');
     setIsAnalyzing(true);
     let detectedBpm = 120;
-    
+
     try {
       const arrayBuffer = await fileToUpload.arrayBuffer();
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -101,7 +101,7 @@ export default function Teacher() {
     } finally {
       setIsAnalyzing(false);
     }
-    
+
     // 박자는 사용자가 직접 선택하도록 빈 값 유지
     setSelectedBeat('');
     set(ref(db, 'gameState/beatType'), '');
@@ -212,54 +212,52 @@ export default function Teacher() {
 
         {/* 파일 제어 및 지휘 시작 레이아웃 라인 */}
         <div className="flex items-center space-x-4">
-          <div className="flex space-x-2 mr-2">
+          {/* BPM 인라인 편집기 */}
+          <div className="flex flex-col items-center mr-2">
+            <span className="text-[10px] text-gray-400 font-semibold uppercase mb-1">BPM {isAnalyzing && <span className="text-blue-400 animate-pulse">분석 중...</span>}</span>
+            <div className={`flex items-center border border-[#D1D5DB] rounded-xl overflow-hidden bg-white shadow-sm h-[72px] ${isPlaying ? 'opacity-50 pointer-events-none' : ''}`}>
+              <button
+                onClick={() => handleBpmChange(masterBpm - 1)}
+                disabled={isAnalyzing}
+                className="px-3 h-full text-lg font-bold text-gray-500 hover:bg-gray-100 transition-all select-none flex items-center justify-center"
+              >−</button>
+              <input
+                type="number"
+                min={40}
+                max={240}
+                value={masterBpm}
+                disabled={isAnalyzing}
+                onChange={(e) => handleBpmChange(Number(e.target.value))}
+                className="w-16 h-full text-center text-lg font-bold text-[#1F2937] border-x border-[#D1D5DB] focus:outline-none focus:ring-2 focus:ring-[#F59E0B] disabled:bg-gray-50 disabled:text-gray-400"
+              />
+              <button
+                onClick={() => handleBpmChange(masterBpm + 1)}
+                disabled={isAnalyzing}
+                className="px-3 h-full text-lg font-bold text-gray-500 hover:bg-gray-100 transition-all select-none flex items-center justify-center"
+              >+</button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mr-2">
             {['2/4', '3/4', '4/4', '6/8'].map(beat => (
               <button
                 key={beat}
                 onClick={() => changeBeatType(beat)}
-                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                  selectedBeat === beat ? 'bg-[#F59E0B] text-white' : 'bg-white text-gray-500 border border-[#D1D5DB] hover:bg-gray-50'
-                }`}
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${selectedBeat === beat ? 'bg-[#F59E0B] text-white' : 'bg-white text-gray-500 border border-[#D1D5DB] hover:bg-gray-50'
+                  }`}
               >
                 {beat}박자
               </button>
             ))}
           </div>
 
-          {/* BPM 인라인 편집기 */}
-          {!isPlaying && (
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] text-gray-400 font-semibold uppercase mb-1">BPM {isAnalyzing && <span className="text-blue-400 animate-pulse">분석 중...</span>}</span>
-              <div className="flex items-center border border-[#D1D5DB] rounded-xl overflow-hidden bg-white shadow-sm">
-                <button
-                  onClick={() => handleBpmChange(masterBpm - 1)}
-                  className="px-3 py-2 text-lg font-bold text-gray-500 hover:bg-gray-100 transition-all select-none"
-                >−</button>
-                <input
-                  type="number"
-                  min={40}
-                  max={240}
-                  value={masterBpm}
-                  disabled={isAnalyzing}
-                  onChange={(e) => handleBpmChange(Number(e.target.value))}
-                  className="w-16 text-center text-lg font-bold text-[#1F2937] border-x border-[#D1D5DB] py-2 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] disabled:bg-gray-50 disabled:text-gray-400"
-                />
-                <button
-                  onClick={() => handleBpmChange(masterBpm + 1)}
-                  className="px-3 py-2 text-lg font-bold text-gray-500 hover:bg-gray-100 transition-all select-none"
-                >+</button>
-              </div>
-            </div>
-          )}
-
           {!isPlaying && (
             <button
               onClick={selectDemoSong}
-              className={`px-4 py-3 text-sm font-semibold rounded-xl shadow-sm cursor-pointer transition-all flex flex-col items-center justify-center leading-tight border ${
-                masterAudioUrl === '/little-star2.mp3' && isReady
+              className={`px-4 py-3 text-sm font-semibold rounded-xl shadow-sm cursor-pointer transition-all flex flex-col items-center justify-center leading-tight border ${masterAudioUrl === '/little-star2.mp3' && isReady
                   ? 'bg-amber-100 border-amber-400 text-amber-800'
                   : 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
-              }`}
+                }`}
             >
               <span>⭐ 작은 별 음원</span>
               <span className="text-xs text-amber-500 font-normal mt-0.5">(테스트용)</span>
@@ -275,9 +273,8 @@ export default function Teacher() {
             <button
               onClick={startConcert}
               disabled={!isReady}
-              className={`px-6 py-3 font-bold rounded-xl shadow-sm transition-all flex flex-col items-center justify-center leading-tight ${
-                isReady ? 'bg-[#1F2937] text-white hover:bg-gray-800' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}
+              className={`px-6 py-3 font-bold rounded-xl shadow-sm transition-all flex flex-col items-center justify-center leading-tight ${isReady ? 'bg-[#1F2937] text-white hover:bg-gray-800' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
             >
               <span>🎵 지휘 시작</span>
               <span className="text-xs font-normal mt-0.5">(학생 기기 동시 기동)</span>
@@ -293,19 +290,19 @@ export default function Teacher() {
       <div className="flex flex-col md:flex-row gap-6 flex-1 overflow-hidden pb-6">
         {/* Global Average Card */}
         <div className="relative md:w-1/3 bg-white p-6 rounded-2xl border border-[#D1D5DB] shadow-sm flex flex-col justify-center items-center">
-          <button 
+          <button
             onClick={() => {
-              if(window.confirm('모든 학생들의 접속 정보를 초기화하시겠습니까?')) {
+              if (window.confirm('모든 학생들의 접속 정보를 초기화하시겠습니까?')) {
                 remove(ref(db, 'scores'));
               }
-            }} 
+            }}
             className="absolute top-4 right-4 px-3 py-1.5 bg-red-100 text-red-600 rounded-lg text-xs font-bold hover:bg-red-200 transition-all whitespace-nowrap"
           >
             전체 학생 초기화
           </button>
           <h2 className="text-xl font-bold mb-2">학생 지휘 점수</h2>
           <p className="text-sm text-gray-500 mb-6">현재 접속 학생: {globalAverage.count}명</p>
-          
+
           <div className="w-full space-y-6">
             <div>
               <div className="flex justify-between text-sm mb-2 font-medium">

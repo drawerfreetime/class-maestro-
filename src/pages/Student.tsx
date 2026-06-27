@@ -17,7 +17,8 @@ export default function Student() {
   const beatTypeRef = useRef<string>('4/4');
   const bpmRef = useRef<number>(120);
   const isLiveRef = useRef<boolean>(false);
-  const startTimeRef = useRef<number>(0); // 지휘 시작 기준 타임스탬프
+  const startTimeRef = useRef<number>(0); // 지휘 시작 기준 타임스탬프 (performance.now() 기준)
+  const serverStartRef = useRef<number>(0); // Firebase updatedAt (Date.now() 기준)
 
   // [수업 제어 상태]
   const [isLive, setIsLive] = useState<boolean>(false);
@@ -55,7 +56,14 @@ export default function Student() {
         if (data.status === 'playing') {
           setIsLive(true);
           isLiveRef.current = true;
-          startTimeRef.current = performance.now(); // 지휘 시작 순간을 원점으로 기록
+          // Firebase의 updatedAt(서버 기준 ms)과 로컬 performance.now()를 연동
+          // 서버가 신호를 보낸 시점을 기준으로 경과 시간을 계산
+          const serverAt = data.updatedAt || Date.now();
+          const localNow = Date.now();
+          const delta = localNow - serverAt; // 서버→클라이언트 수신 딜레이
+          // performance.now() 기준으로 서버 시작 시점 추정
+          startTimeRef.current = performance.now() - delta;
+          serverStartRef.current = serverAt;
           setFeedback('START!');
         } else {
           setIsLive(false);
@@ -115,44 +123,129 @@ export default function Student() {
     }
   };
 
-  // 박자별 지휘 궤적 수학 공식
+  // ─────────────────────────────────────────────────────────────────
+  // 박자별 지휘 궤적  (이미지 패턴 기준)
+  // ※ t=0 기준: 항상 위 중앙 준비 자세
+  // ※ 각 박(beat)의 ictus(강세점)은 1박=beatDuration 간격으로 위치
+  // ─────────────────────────────────────────────────────────────────
   const getConductingNode = (time: number, beatType: string, currentBpm: number = 120) => {
-    const beatDuration = (60 / currentBpm) * 1000;
-    
+    const beatDuration = (60 / currentBpm) * 1000; // 1박 길이(ms)
+
+    // ── 2/4 박자 ──────────────────────────────────────────────────
+    // 이미지: 위→①(왼쪽아래,↓)→②(오른쪽중간,↑)→③(위)
+    // t=0: 위 중앙, t=0.5: ①왼쪽아래(beat1), t=1.0: 위복귀(beat2)
     if (beatType === '2/4') {
       const t = (time % (beatDuration * 2)) / (beatDuration * 2);
-      return { x: 400 + 180 * Math.sin(t * 2 * Math.PI), y: 225 + 180 * Math.cos(t * 2 * Math.PI) };
+      let bx = 0, by = 0;
+      if (t < 0.5) {
+        // 위 → ①: 왼쪽 아래로 내려감
+        const p = t / 0.5;
+        bx = -120 * p;                   // 오른쪽에서 왼쪽으로
+        by = -130 + 240 * p;             // 위(-130) → 아래(+110)
+      } else if (t < 0.75) {
+        // ① → ②: 왼쪽아래에서 오른쪽 중간으로 swing
+        const p = (t - 0.5) / 0.25;
+        bx = -120 + 240 * p;             // 왼(-120) → 오른(+120)
+        by = 110 - 160 * p;              // 아래(+110) → 중간(-50)
+      } else {
+        // ② → ③: 오른쪽에서 위 중앙으로 복귀 (beat 2 ictus)
+        const p = (t - 0.75) / 0.25;
+        bx = 120 - 120 * p;              // 오른(+120) → 중앙(0)
+        by = -50 - 80 * p;               // 중간(-50) → 위(-130)
+      }
+      return { x: 400 + bx, y: 225 + by };
+
+    // ── 3/4 박자 ──────────────────────────────────────────────────
+    // 이미지: 위→①(왼쪽아래,↓)→②(오른쪽아래,↑)→③(위중앙,↑)
+    // t=0: 위, t=1/3: ①왼쪽아래(beat1), t=2/3: ②오른쪽아래(beat2), t=1: ③위(beat3)
     } else if (beatType === '3/4') {
       const t = (time % (beatDuration * 3)) / (beatDuration * 3);
-      return { x: 400 + 240 * Math.sin(t * 2 * Math.PI), y: 225 + 120 * Math.cos(t * 3 * Math.PI) };
+      let bx = 0, by = 0;
+      if (t < 1/3) {
+        // 위 → ①: 왼쪽 아래로 Down stroke
+        const p = t * 3;
+        bx = -130 * p + 10 * Math.sin(p * Math.PI); // 왼쪽으로, 약간 오른쪽 휨
+        by = -120 + 230 * p;                         // 위(-120) → 아래(+110)
+      } else if (t < 2/3) {
+        // ① → ②: 왼쪽아래에서 오른쪽아래로 (U자 바닥)
+        const p = (t - 1/3) * 3;
+        bx = -130 + 260 * p;                         // 왼(-130) → 오른(+130)
+        by = 110 + 20 * Math.sin(p * Math.PI);       // 바닥 유지, 약간 볼록
+      } else {
+        // ② → ③: 오른쪽아래에서 위 중앙으로 Up stroke
+        const p = (t - 2/3) * 3;
+        bx = 130 - 130 * p;                          // 오른(+130) → 중앙(0)
+        by = 110 - 230 * p;                          // 아래(+110) → 위(-120)
+      }
+      return { x: 400 + bx, y: 225 + by };
+
+    // ── 6/8 박자 ──────────────────────────────────────────────────
+    // 이미지: 위→①(아래중앙)→②③(왼쪽 지그재그)→④(오른쪽아래)→⑤(오른쪽위)→⑥(위)
+    // 6개 ictus 지점을 smooth 보간으로 연결
     } else if (beatType === '6/8') {
       const t = (time % (beatDuration * 6)) / (beatDuration * 6);
-      return { x: 400 + 312 * Math.sin(t * 2 * Math.PI), y: 225 + 120 * Math.sin(t * 4 * Math.PI) };
+      // 6개 박 위치 (bx, by) — 이미지 패턴 기준
+      const pts: [number, number][] = [
+        [   0, -120],  // t=0   : ⑥/시작 — 위 중앙
+        [   0,  130],  // t=1/6 : ① — 아래 중앙 (main downbeat)
+        [-110,   50],  // t=2/6 : ② — 왼쪽 중간
+        [ -70,  -70],  // t=3/6 : ③ — 왼쪽 위
+        [  90,   80],  // t=4/6 : ④ — 오른쪽 아래 (2nd main beat)
+        [ 140,  -10],  // t=5/6 : ⑤ — 오른쪽 위
+      ];
+      const seg = Math.floor(t * 6) % 6;
+      const p   = (t * 6) - Math.floor(t * 6);
+      const [x0, y0] = pts[seg];
+      const [x1, y1] = pts[(seg + 1) % 6];
+      // smooth-step 보간으로 자연스러운 곡선 느낌
+      const s = p * p * (3 - 2 * p);
+      return {
+        x: 400 + x0 + (x1 - x0) * s,
+        y: 225 + y0 + (y1 - y0) * s,
+      };
+
+    // ── 4/4 박자 ──────────────────────────────────────────────────
+    // 이미지: 위→①(아래)→②(왼쪽 루프)→③(오른쪽 스윕)→④(위)
+    // Bezier 곡선을 사용하여 부드럽고 실제와 똑같은 지휘 궤적 생성
     } else {
-      // [정통 4/4박자 지휘 궤적]: 1박(下) -> 2박(左) -> 3박(右) -> 4박(上)
       const t = (time % (beatDuration * 4)) / (beatDuration * 4);
-      
-      let bx = 0;
-      let by = 0;
-      
+      let bx = 0, by = 0;
+
+      // 3차 베지어 곡선 계산 함수
+      const getBezier = (p: number, p0: number[], p1: number[], p2: number[], p3: number[]) => {
+        const invp = 1 - p;
+        const b0 = invp * invp * invp;
+        const b1 = 3 * invp * invp * p;
+        const b2 = 3 * invp * p * p;
+        const b3 = p * p * p;
+        return [
+          b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0],
+          b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1]
+        ];
+      };
+
       if (t < 0.25) {
+        // 1박: 위에서 아래로 (직선에 가까운 다운스트로크)
         const p = t / 0.25;
-        bx = 0 - 30 * Math.sin(p * Math.PI);
-        by = -120 + 240 * p;
+        const [x, y] = getBezier(p, [0, -140], [0, -60], [0, 20], [0, 120]);
+        bx = x; by = y;
       } else if (t < 0.5) {
+        // 2박: 아래에서 왼쪽으로 (오른쪽으로 살짝 튕겼다가 왼쪽 위로 루프를 그리는 모양)
         const p = (t - 0.25) / 0.25;
-        bx = 0 - 180 * p;
-        by = 120 - 100 * Math.sin(p * Math.PI / 2);
+        const [x, y] = getBezier(p, [0, 120], [80, 0], [-80, -60], [-140, 20]);
+        bx = x; by = y;
       } else if (t < 0.75) {
+        // 3박: 왼쪽에서 오른쪽으로 (아래를 향해 부드럽게 스윕하는 U자 모양)
         const p = (t - 0.5) / 0.25;
-        bx = -180 + 360 * p;
-        by = 20 + 50 * Math.sin(p * Math.PI);
+        const [x, y] = getBezier(p, [-140, 20], [-80, 140], [80, 140], [140, 20]);
+        bx = x; by = y;
       } else {
+        // 4박: 오른쪽에서 다시 위로 (부드럽게 말아 올리는 모양)
         const p = (t - 0.75) / 0.25;
-        bx = 180 - 180 * p;
-        by = 20 - 140 * p;
+        const [x, y] = getBezier(p, [140, 20], [140, -60], [60, -140], [0, -140]);
+        bx = x; by = y;
       }
-      return { x: 400 + bx * 1.2, y: 225 + by * 1.2 };
+      return { x: 400 + bx * 1.1, y: 225 + by * 1.1 };
     }
   };
 
@@ -200,7 +293,10 @@ export default function Student() {
     const liveNow = isLiveRef.current;
     let targetNode = { x: 400, y: 225 };
     if (liveNow) {
-      const elapsed = timestamp - startTimeRef.current; // 지휘 시작부터의 경과 시간
+      // 1박(beatDuration) 오프셋: t=0=위(준비)에서 1박 후 ①도달
+      // → 음악 시작(elapsed_raw=0) 시 도트가 ① 위치에 오게 맞춤
+      const beatDurationMs = (60 / bpmRef.current) * 1000;
+      const elapsed = Math.max(0, timestamp - startTimeRef.current) + beatDurationMs;
       targetNode = getConductingNode(elapsed, beatTypeRef.current, bpmRef.current);
       ctx.fillStyle = '#1F2937';
       ctx.beginPath();
