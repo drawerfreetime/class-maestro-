@@ -9,7 +9,6 @@ export default function Teacher() {
   const [uploadStatus, setUploadStatus] = useState<string>('음원 파일(mp3)을 업로드해주세요.\n업로드하지 않고 예시로 작은 별 음원을 재생할 수 있습니다.');
   const [isReady, setIsReady] = useState<boolean>(false);
   const [selectedBeat, setSelectedBeat] = useState<string>('');
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [masterBpm, setMasterBpm] = useState<number>(120);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
 
@@ -73,6 +72,11 @@ export default function Teacher() {
       if (audioElementRef.current) audioElementRef.current.pause();
     };
   }, []);
+
+  const handleBpmChange = (val: number) => {
+    const clamped = Math.max(40, Math.min(240, val));
+    setMasterBpm(clamped);
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -222,6 +226,32 @@ export default function Teacher() {
             ))}
           </div>
 
+          {/* BPM 인라인 편집기 */}
+          {!isPlaying && (
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-gray-400 font-semibold uppercase mb-1">BPM {isAnalyzing && <span className="text-blue-400 animate-pulse">분석 중...</span>}</span>
+              <div className="flex items-center border border-[#D1D5DB] rounded-xl overflow-hidden bg-white shadow-sm">
+                <button
+                  onClick={() => handleBpmChange(masterBpm - 1)}
+                  className="px-3 py-2 text-lg font-bold text-gray-500 hover:bg-gray-100 transition-all select-none"
+                >−</button>
+                <input
+                  type="number"
+                  min={40}
+                  max={240}
+                  value={masterBpm}
+                  disabled={isAnalyzing}
+                  onChange={(e) => handleBpmChange(Number(e.target.value))}
+                  className="w-16 text-center text-lg font-bold text-[#1F2937] border-x border-[#D1D5DB] py-2 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] disabled:bg-gray-50 disabled:text-gray-400"
+                />
+                <button
+                  onClick={() => handleBpmChange(masterBpm + 1)}
+                  className="px-3 py-2 text-lg font-bold text-gray-500 hover:bg-gray-100 transition-all select-none"
+                >+</button>
+              </div>
+            </div>
+          )}
+
           {!isPlaying && (
             <button
               onClick={selectDemoSong}
@@ -312,43 +342,7 @@ export default function Teacher() {
         </div>
       </div>
 
-      {/* BPM Selection Modal */}
-      {pendingFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-2xl shadow-xl w-80 flex flex-col items-center">
-            <h3 className="text-lg font-bold mb-4">음원 BPM 설정</h3>
-            {isAnalyzing ? (
-              <p className="text-sm text-blue-600 mb-4 text-center font-bold animate-pulse">음원을 분석 중입니다...</p>
-            ) : (
-              <p className="text-sm text-gray-500 mb-4 text-center">선택한 음원의 BPM을 확인하거나 수정해주세요.<br/>(60 ~ 140 사이)</p>
-            )}
-            <input 
-              type="number" 
-              min="60" 
-              max="140" 
-              value={masterBpm}
-              disabled={isAnalyzing}
-              onChange={(e) => setMasterBpm(Number(e.target.value))}
-              className={`w-full text-center text-2xl font-bold border border-gray-300 rounded-xl py-3 mb-6 focus:outline-none focus:ring-2 focus:ring-[#F59E0B] ${isAnalyzing ? 'bg-gray-100 text-gray-400' : ''}`}
-            />
-            <div className="flex space-x-3 w-full">
-              <button 
-                onClick={() => setPendingFile(null)}
-                className="flex-1 py-3 bg-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-300 transition-all"
-              >
-                취소
-              </button>
-              <button 
-                onClick={() => setPendingFile(null)}
-                disabled={isAnalyzing}
-                className={`flex-1 py-3 font-bold rounded-xl transition-all ${isAnalyzing ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#F59E0B] text-white hover:bg-yellow-600'}`}
-              >
-                완료
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
