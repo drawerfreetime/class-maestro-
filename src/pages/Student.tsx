@@ -131,121 +131,92 @@ export default function Student() {
   const getConductingNode = (time: number, beatType: string, currentBpm: number = 120) => {
     const beatDuration = (60 / currentBpm) * 1000; // 1박 길이(ms)
 
-    // ── 2/4 박자 ──────────────────────────────────────────────────
-    // 이미지: 위→①(왼쪽아래,↓)→②(오른쪽중간,↑)→③(위)
-    // t=0: 위 중앙, t=0.5: ①왼쪽아래(beat1), t=1.0: 위복귀(beat2)
+    // 3차 베지어 곡선 계산 함수
+    const getBezier = (p: number, p0: number[], p1: number[], p2: number[], p3: number[]) => {
+      const invp = 1 - p;
+      const b0 = invp * invp * invp;
+      const b1 = 3 * invp * invp * p;
+      const b2 = 3 * invp * p * p;
+      const b3 = p * p * p;
+      return {
+        x: b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0],
+        y: b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1]
+      };
+    };
+
     if (beatType === '2/4') {
       const t = (time % (beatDuration * 2)) / (beatDuration * 2);
-      let bx = 0, by = 0;
       if (t < 0.5) {
-        // 위 → ①: 왼쪽 아래로 내려감
+        // 1박: (400, 50) -> (400, 400) 수직 하강
         const p = t / 0.5;
-        bx = -120 * p;                   // 오른쪽에서 왼쪽으로
-        by = -130 + 240 * p;             // 위(-130) → 아래(+110)
-      } else if (t < 0.75) {
-        // ① → ②: 왼쪽아래에서 오른쪽 중간으로 swing
-        const p = (t - 0.5) / 0.25;
-        bx = -120 + 240 * p;             // 왼(-120) → 오른(+120)
-        by = 110 - 160 * p;              // 아래(+110) → 중간(-50)
+        return getBezier(p, [400, 50], [400, 150], [400, 250], [400, 400]);
       } else {
-        // ② → ③: 오른쪽에서 위 중앙으로 복귀 (beat 2 ictus)
-        const p = (t - 0.75) / 0.25;
-        bx = 120 - 120 * p;              // 오른(+120) → 중앙(0)
-        by = -50 - 80 * p;               // 중간(-50) → 위(-130)
+        // 2박: (400, 400) -> 오른쪽 위 볼록 (480, 180 부근) -> (400, 50)
+        const p = (t - 0.5) / 0.5;
+        return getBezier(p, [400, 400], [550, 300], [500, 50], [400, 50]);
       }
-      return { x: 400 + bx, y: 225 + by };
-
-    // ── 3/4 박자 ──────────────────────────────────────────────────
-    // 이미지: 위→①(왼쪽아래,↓)→②(오른쪽아래,↑)→③(위중앙,↑)
-    // t=0: 위, t=1/3: ①왼쪽아래(beat1), t=2/3: ②오른쪽아래(beat2), t=1: ③위(beat3)
     } else if (beatType === '3/4') {
       const t = (time % (beatDuration * 3)) / (beatDuration * 3);
-      let bx = 0, by = 0;
-      if (t < 1/3) {
-        // 위 → ①: 왼쪽 아래로 Down stroke
-        const p = t * 3;
-        bx = -130 * p + 10 * Math.sin(p * Math.PI); // 왼쪽으로, 약간 오른쪽 휨
-        by = -120 + 230 * p;                         // 위(-120) → 아래(+110)
-      } else if (t < 2/3) {
-        // ① → ②: 왼쪽아래에서 오른쪽아래로 (U자 바닥)
-        const p = (t - 1/3) * 3;
-        bx = -130 + 260 * p;                         // 왼(-130) → 오른(+130)
-        by = 110 + 20 * Math.sin(p * Math.PI);       // 바닥 유지, 약간 볼록
+      if (t < 0.333) {
+        // 1박: (350, 50) -> (350, 400) 뚝 떨어짐
+        const p = t / 0.333;
+        return getBezier(p, [350, 50], [350, 150], [350, 250], [350, 400]);
+      } else if (t < 0.666) {
+        // 2박: (350, 400) -> (550, 250) 아래로 처지는 U자 스윕
+        const p = (t - 0.333) / 0.333;
+        return getBezier(p, [350, 400], [350, 480], [500, 350], [550, 250]);
       } else {
-        // ② → ③: 오른쪽아래에서 위 중앙으로 Up stroke
-        const p = (t - 2/3) * 3;
-        bx = 130 - 130 * p;                          // 오른(+130) → 중앙(0)
-        by = 110 - 230 * p;                          // 아래(+110) → 위(-120)
+        // 3박: (550, 250) -> (350, 50) 둥근 반원 복귀
+        const p = (t - 0.666) / 0.334;
+        return getBezier(p, [550, 250], [600, 150], [450, 50], [350, 50]);
       }
-      return { x: 400 + bx, y: 225 + by };
-
-    // ── 6/8 박자 ──────────────────────────────────────────────────
-    // 이미지: 위→①(아래중앙)→②③(왼쪽 지그재그)→④(오른쪽아래)→⑤(오른쪽위)→⑥(위)
-    // 6개 ictus 지점을 smooth 보간으로 연결
     } else if (beatType === '6/8') {
       const t = (time % (beatDuration * 6)) / (beatDuration * 6);
-      // 6개 박 위치 (bx, by) — 이미지 패턴 기준
-      const pts: [number, number][] = [
-        [   0, -120],  // t=0   : ⑥/시작 — 위 중앙
-        [   0,  130],  // t=1/6 : ① — 아래 중앙 (main downbeat)
-        [-110,   50],  // t=2/6 : ② — 왼쪽 중간
-        [ -70,  -70],  // t=3/6 : ③ — 왼쪽 위
-        [  90,   80],  // t=4/6 : ④ — 오른쪽 아래 (2nd main beat)
-        [ 140,  -10],  // t=5/6 : ⑤ — 오른쪽 위
-      ];
-      const seg = Math.floor(t * 6) % 6;
-      const p   = (t * 6) - Math.floor(t * 6);
-      const [x0, y0] = pts[seg];
-      const [x1, y1] = pts[(seg + 1) % 6];
-      // smooth-step 보간으로 자연스러운 곡선 느낌
-      const s = p * p * (3 - 2 * p);
-      return {
-        x: 400 + x0 + (x1 - x0) * s,
-        y: 225 + y0 + (y1 - y0) * s,
-      };
-
-    // ── 4/4 박자 ──────────────────────────────────────────────────
-    // 이미지: 위→①(아래)→②(왼쪽 루프)→③(오른쪽 스윕)→④(위)
-    // Bezier 곡선을 사용하여 부드럽고 실제와 똑같은 지휘 궤적 생성
-    } else {
-      const t = (time % (beatDuration * 4)) / (beatDuration * 4);
-      let bx = 0, by = 0;
-
-      // 3차 베지어 곡선 계산 함수
-      const getBezier = (p: number, p0: number[], p1: number[], p2: number[], p3: number[]) => {
-        const invp = 1 - p;
-        const b0 = invp * invp * invp;
-        const b1 = 3 * invp * invp * p;
-        const b2 = 3 * invp * p * p;
-        const b3 = p * p * p;
-        return [
-          b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0],
-          b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1]
-        ];
-      };
-
-      if (t < 0.25) {
-        // 1박: 위에서 아래로 (직선에 가까운 다운스트로크)
-        const p = t / 0.25;
-        const [x, y] = getBezier(p, [0, -140], [0, -60], [0, 20], [0, 120]);
-        bx = x; by = y;
-      } else if (t < 0.5) {
-        // 2박: 아래에서 왼쪽으로 (오른쪽으로 살짝 튕겼다가 왼쪽 위로 루프를 그리는 모양)
-        const p = (t - 0.25) / 0.25;
-        const [x, y] = getBezier(p, [0, 120], [80, 0], [-80, -60], [-140, 20]);
-        bx = x; by = y;
-      } else if (t < 0.75) {
-        // 3박: 왼쪽에서 오른쪽으로 (아래를 향해 부드럽게 스윕하는 U자 모양)
-        const p = (t - 0.5) / 0.25;
-        const [x, y] = getBezier(p, [-140, 20], [-80, 140], [80, 140], [140, 20]);
-        bx = x; by = y;
+      // 좌우 무한대 루프가 완벽한 기하학적 대칭을 이루도록 제어점 구성
+      if (t < 1/6) {
+        const p = t * 6;
+        return getBezier(p, [400, 50], [400, 150], [400, 250], [400, 400]);
+      } else if (t < 2/6) {
+        // 2박: 좌측 루프 전반
+        const p = (t - 1/6) * 6;
+        return getBezier(p, [400, 400], [250, 400], [150, 350], [200, 250]);
+      } else if (t < 3/6) {
+        // 3박: 좌측 루프 후반 (중앙 교차점 도착)
+        const p = (t - 2/6) * 6;
+        return getBezier(p, [200, 250], [250, 150], [350, 200], [400, 250]);
+      } else if (t < 4/6) {
+        // 4박: 우측 루프 전반 (2박과 완벽한 좌우 대칭)
+        const p = (t - 3/6) * 6;
+        return getBezier(p, [400, 250], [550, 250], [650, 200], [600, 100]);
+      } else if (t < 5/6) {
+        // 5박: 우측 루프 후반 (3박과 완벽한 좌우 대칭)
+        const p = (t - 4/6) * 6;
+        return getBezier(p, [600, 100], [550, 0], [450, 50], [400, 100]);
       } else {
-        // 4박: 오른쪽에서 다시 위로 (부드럽게 말아 올리는 모양)
-        const p = (t - 0.75) / 0.25;
-        const [x, y] = getBezier(p, [140, 20], [140, -60], [60, -140], [0, -140]);
-        bx = x; by = y;
+        // 6박: 중앙 복귀
+        const p = (t - 5/6) * 6;
+        return getBezier(p, [400, 100], [400, 80], [400, 60], [400, 50]);
       }
-      return { x: 400 + bx * 1.1, y: 225 + by * 1.1 };
+    } else {
+      // 4/4 박자
+      const t = (time % (beatDuration * 4)) / (beatDuration * 4);
+      if (t < 0.25) {
+        // 1박: (400, 50) -> (400, 400) 수직 하강
+        const p = t / 0.25;
+        return getBezier(p, [400, 50], [400, 150], [400, 250], [400, 400]);
+      } else if (t < 0.5) {
+        // 2박: (400, 400) -> 좌측 무한대 루프 -> (400, 300) 교차
+        const p = (t - 0.25) / 0.25;
+        return getBezier(p, [400, 400], [250, 200], [150, 400], [400, 300]);
+      } else if (t < 0.75) {
+        // 3박: (400, 300) -> 우측 아래 처짐 -> (550, 200) 솟구침
+        const p = (t - 0.5) / 0.25;
+        return getBezier(p, [400, 300], [500, 400], [650, 350], [550, 200]);
+      } else {
+        // 4박: (550, 200) -> 완만한 U자 복귀 -> (400, 50)
+        const p = (t - 0.75) / 0.25;
+        return getBezier(p, [550, 200], [500, 50], [450, 50], [400, 50]);
+      }
     }
   };
 
