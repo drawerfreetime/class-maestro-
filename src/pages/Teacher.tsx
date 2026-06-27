@@ -211,42 +211,41 @@ export default function Teacher() {
         </div>
 
         {/* 파일 제어 및 지휘 시작 레이아웃 라인 */}
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-wrap items-center gap-3">
           {/* BPM 인라인 편집기 */}
-          <div className="flex flex-col items-center mr-2">
-            <span className="text-[10px] text-gray-400 font-semibold uppercase mb-1">BPM {isAnalyzing && <span className="text-blue-400 animate-pulse">분석 중...</span>}</span>
-            <div className={`flex items-center border border-[#D1D5DB] rounded-xl overflow-hidden bg-white shadow-sm h-[72px] ${isPlaying ? 'opacity-50 pointer-events-none' : ''}`}>
-              <button
-                onClick={() => handleBpmChange(masterBpm - 1)}
-                disabled={isAnalyzing}
-                className="px-3 h-full text-lg font-bold text-gray-500 hover:bg-gray-100 transition-all select-none flex items-center justify-center"
-              >−</button>
+          <div className={`flex items-center border border-[#D1D5DB] rounded-xl overflow-hidden bg-white shadow-sm h-12 ${isPlaying ? 'opacity-50 pointer-events-none' : ''}`}>
+            <button
+              onClick={() => handleBpmChange(masterBpm - 1)}
+              disabled={isAnalyzing}
+              className="w-10 h-full text-lg font-bold text-gray-500 hover:bg-gray-100 flex items-center justify-center select-none"
+            >−</button>
+            <div className="flex flex-col items-center justify-center w-14 h-full border-x border-[#D1D5DB] bg-gray-50">
+              <span className="text-[9px] text-gray-400 font-bold leading-none mb-0.5">BPM</span>
               <input
                 type="number"
-                min={40}
-                max={240}
+                min={40} max={240}
                 value={masterBpm}
                 disabled={isAnalyzing}
                 onChange={(e) => handleBpmChange(Number(e.target.value))}
-                className="w-16 h-full text-center text-lg font-bold text-[#1F2937] border-x border-[#D1D5DB] focus:outline-none focus:ring-2 focus:ring-[#F59E0B] disabled:bg-gray-50 disabled:text-gray-400"
+                className="w-full text-center text-sm font-bold bg-transparent focus:outline-none"
               />
-              <button
-                onClick={() => handleBpmChange(masterBpm + 1)}
-                disabled={isAnalyzing}
-                className="px-3 h-full text-lg font-bold text-gray-500 hover:bg-gray-100 transition-all select-none flex items-center justify-center"
-              >+</button>
             </div>
+            <button
+              onClick={() => handleBpmChange(masterBpm + 1)}
+              disabled={isAnalyzing}
+              className="w-10 h-full text-lg font-bold text-gray-500 hover:bg-gray-100 flex items-center justify-center select-none"
+            >+</button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mr-2">
+          <div className="flex space-x-1">
             {['2/4', '3/4', '4/4', '6/8'].map(beat => (
               <button
                 key={beat}
                 onClick={() => changeBeatType(beat)}
-                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${selectedBeat === beat ? 'bg-[#F59E0B] text-white' : 'bg-white text-gray-500 border border-[#D1D5DB] hover:bg-gray-50'
+                className={`w-12 h-12 rounded-xl text-xs font-bold transition-all ${selectedBeat === beat ? 'bg-[#F59E0B] text-white shadow-md' : 'bg-white text-gray-500 border border-[#D1D5DB] hover:bg-gray-50'
                   }`}
               >
-                {beat}박자
+                {beat}
               </button>
             ))}
           </div>
@@ -254,17 +253,16 @@ export default function Teacher() {
           {!isPlaying && (
             <button
               onClick={selectDemoSong}
-              className={`px-4 py-3 text-sm font-semibold rounded-xl shadow-sm cursor-pointer transition-all flex flex-col items-center justify-center leading-tight border ${masterAudioUrl === '/little-star2.mp3' && isReady
+              className={`h-12 px-4 text-xs font-semibold rounded-xl shadow-sm transition-all border ${masterAudioUrl === '/little-star2.mp3' && isReady
                   ? 'bg-amber-100 border-amber-400 text-amber-800'
-                  : 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+                  : 'bg-white border-[#D1D5DB] text-gray-600 hover:bg-gray-50'
                 }`}
             >
-              <span>⭐ 작은 별 음원</span>
-              <span className="text-xs text-amber-500 font-normal mt-0.5">(테스트용)</span>
+              ⭐ 샘플 곡
             </button>
           )}
 
-          <label className="px-4 py-3 bg-white border border-[#D1D5DB] text-sm font-semibold rounded-xl shadow-sm cursor-pointer hover:bg-gray-50 transition-all whitespace-nowrap">
+          <label className="h-12 px-4 flex items-center bg-white border border-[#D1D5DB] text-xs font-semibold rounded-xl shadow-sm cursor-pointer hover:bg-gray-50 transition-all">
             📂 음원 선택
             <input type="file" accept="audio/*" onChange={handleFileSelect} className="hidden" />
           </label>
@@ -273,14 +271,13 @@ export default function Teacher() {
             <button
               onClick={startConcert}
               disabled={!isReady}
-              className={`px-6 py-3 font-bold rounded-xl shadow-sm transition-all flex flex-col items-center justify-center leading-tight ${isReady ? 'bg-[#1F2937] text-white hover:bg-gray-800' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              className={`h-12 px-6 font-bold rounded-xl shadow-sm transition-all text-sm ${isReady ? 'bg-[#1F2937] text-white hover:bg-gray-800' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
             >
-              <span>🎵 지휘 시작</span>
-              <span className="text-xs font-normal mt-0.5">(학생 기기 동시 기동)</span>
+              🎵 지휘 시작
             </button>
           ) : (
-            <button onClick={stopConcert} className="px-6 py-3 bg-red-600 text-white font-bold rounded-xl shadow-sm hover:bg-red-700 transition-all">
+            <button onClick={stopConcert} className="h-12 px-6 bg-red-600 text-white font-bold rounded-xl shadow-sm hover:bg-red-700 transition-all text-sm">
               ⏹️ 지휘 중단
             </button>
           )}
